@@ -1,6 +1,7 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import Group from "../models/group.model.js";
+import ConversationRequest from "../models/conversationRequest.model.js";
 
 import cloudinary from "../lib/cloudinary.js";
 import { getReceiverSocketId, getGroupSocketIds, io } from "../lib/socket.js";
@@ -41,6 +42,45 @@ export const sendMessage = async (req, res) => {
     const { text, image, video } = req.body;
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
+
+    // Check if chat request exists and is accepted
+    const chatRequest = await ConversationRequest.findOne({
+      $or: [
+        { requester: senderId, recipient: receiverId },
+        { requester: receiverId, recipient: senderId },
+      ],
+    });
+
+    // If no request exists, check for existing messages (backward compatibility)
+    if (!chatRequest) {
+      const existingMessages = await Message.findOne({
+        $or: [
+          { senderId: senderId, receiverId: receiverId },
+          { senderId: receiverId, receiverId: senderId },
+        ],
+      });
+
+      // If no existing messages, require a chat request
+      if (!existingMessages) {
+        return res.status(403).json({
+          error: "Chat request not sent",
+          message: "Please send a chat request first before messaging",
+        });
+      }
+      // If existing messages found, auto-create accepted request for backward compatibility
+      const autoRequest = new ConversationRequest({
+        requester: senderId,
+        recipient: receiverId,
+        status: "accepted",
+      });
+      await autoRequest.save();
+    } else if (chatRequest.status !== "accepted") {
+      // Request exists but not accepted
+      return res.status(403).json({
+        error: "Chat request not accepted",
+        message: "Wait for the recipient to accept your chat request",
+      });
+    }
 
     let imageUrl;
     let videoUrl;
