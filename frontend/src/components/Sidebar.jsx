@@ -4,9 +4,10 @@ import { useGroupStore } from "../store/useGroupStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { useRequestStore } from "../store/useRequestStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
-import { Users, MessageCircle, Plus, UserPlus } from "lucide-react";
+import { Users, MessageCircle, Plus, UserPlus, Search } from "lucide-react";
 import CreateGroupModal from "./CreateGroupModal";
 import RequestsPanel from "./RequestsPanel";
+import UserSearchModal from "./UserSearchModal";
 
 const Sidebar = () => {
   const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading, setChatType } = useChatStore();
@@ -18,6 +19,7 @@ const Sidebar = () => {
   const [activeTab, setActiveTab] = useState("users"); // 'users' or 'groups'
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showRequestsPanel, setShowRequestsPanel] = useState(false);
+  const [showUserSearch, setShowUserSearch] = useState(false);
 
   useEffect(() => {
     getUsers();
@@ -63,6 +65,14 @@ const Sidebar = () => {
               <span className="hidden lg:inline">Groups</span>
             </button>
           </div>
+          {/* Find Users Button */}
+          <button
+            onClick={() => setShowUserSearch(true)}
+            className="btn btn-sm btn-primary w-full mt-2"
+          >
+            <Search className="size-4" />
+            <span className="hidden lg:inline">Find Users</span>
+          </button>
           {/* Requests Button */}
           <button
             onClick={() => setShowRequestsPanel(true)}
@@ -191,6 +201,10 @@ const Sidebar = () => {
 
       {showRequestsPanel && (
         <RequestsPanel onClose={() => setShowRequestsPanel(false)} />
+      )}
+
+      {showUserSearch && (
+        <UserSearchModal onClose={() => setShowUserSearch(false)} />
       )}
     </>
   );

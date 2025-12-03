@@ -6,14 +6,77 @@ import ConversationRequest from "../models/conversationRequest.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { getReceiverSocketId, getGroupSocketIds, io } from "../lib/socket.js";
 
+// Get users with accepted chat requests (for sidebar)
 export const getUsersForSidebar = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
-    const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
+    
+    // Find all accepted requests where user is either requester or recipient
+    const acceptedRequests = await ConversationRequest.find({
+      $or: [
+        { requester: loggedInUserId, status: "accepted" },
+        { recipient: loggedInUserId, status: "accepted" },
+      ],
+    });
 
-    res.status(200).json(filteredUsers);
+    // Extract user IDs from accepted requests
+    const userIds = acceptedRequests.map((request) => {
+      return request.requester.toString() === loggedInUserId.toString()
+        ? request.recipient
+        : request.requester;
+    });
+
+    // Also include users with existing messages (backward compatibility)
+    const messagesWithUsers = await Message.find({
+      $or: [
+        { senderId: loggedInUserId },
+        { receiverId: loggedInUserId },
+      ],
+    }).distinct("senderId");
+
+    const messagesWithUsers2 = await Message.find({
+      $or: [
+        { senderId: loggedInUserId },
+        { receiverId: loggedInUserId },
+      ],
+    }).distinct("receiverId");
+
+    const allUserIds = [...new Set([...userIds, ...messagesWithUsers, ...messagesWithUsers2])];
+    
+    // Remove current user ID
+    const filteredUserIds = allUserIds.filter(id => id.toString() !== loggedInUserId.toString());
+
+    // Fetch user details
+    const users = await User.find({ _id: { $in: filteredUserIds } }).select("-password");
+
+    res.status(200).json(users);
   } catch (error) {
     console.error("Error in getUsersForSidebar: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Search users by email
+export const searchUsers = async (req, res) => {
+  try {
+    const { email } = req.query;
+    const loggedInUserId = req.user._id;
+
+    if (!email || email.trim() === "") {
+      return res.status(400).json({ error: "Email query is required" });
+    }
+
+    // Search for users by email (case-insensitive, partial match)
+    const users = await User.find({
+      email: { $regex: email, $options: "i" },
+      _id: { $ne: loggedInUserId }, // Exclude current user
+    })
+      .select("-password")
+      .limit(10); // Limit results to 10
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Error in searchUsers: ", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };
