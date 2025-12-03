@@ -2,18 +2,22 @@ import { useEffect, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useGroupStore } from "../store/useGroupStore";
 import { useAuthStore } from "../store/useAuthStore";
+import { useRequestStore } from "../store/useRequestStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
-import { Users, MessageCircle, Plus } from "lucide-react";
+import { Users, MessageCircle, Plus, UserPlus } from "lucide-react";
 import CreateGroupModal from "./CreateGroupModal";
+import RequestsPanel from "./RequestsPanel";
 
 const Sidebar = () => {
   const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading, setChatType } = useChatStore();
   const { getGroups, groups, selectedGroup, setSelectedGroup, isGroupsLoading } = useGroupStore();
   const { onlineUsers } = useAuthStore();
+  const { incomingRequests } = useRequestStore();
 
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
   const [activeTab, setActiveTab] = useState("users"); // 'users' or 'groups'
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showRequestsPanel, setShowRequestsPanel] = useState(false);
 
   useEffect(() => {
     getUsers();
@@ -59,6 +63,19 @@ const Sidebar = () => {
               <span className="hidden lg:inline">Groups</span>
             </button>
           </div>
+          {/* Requests Button */}
+          <button
+            onClick={() => setShowRequestsPanel(true)}
+            className="btn btn-sm btn-ghost w-full mt-2 relative"
+          >
+            <UserPlus className="size-4" />
+            <span className="hidden lg:inline">Requests</span>
+            {incomingRequests.length > 0 && (
+              <span className="absolute -top-1 -right-1 badge badge-primary badge-sm">
+                {incomingRequests.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Users Tab */}
@@ -171,6 +188,10 @@ const Sidebar = () => {
         isOpen={showCreateGroup}
         onClose={() => setShowCreateGroup(false)}
       />
+
+      {showRequestsPanel && (
+        <RequestsPanel onClose={() => setShowRequestsPanel(false)} />
+      )}
     </>
   );
 };

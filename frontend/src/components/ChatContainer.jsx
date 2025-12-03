@@ -1,11 +1,13 @@
 import { useChatStore } from "../store/useChatStore";
-import { useEffect, useRef } from "react";
+import { useRequestStore } from "../store/useRequestStore";
+import { useEffect, useRef, useState } from "react";
 
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatMessageTime } from "../lib/utils";
+import { UserPlus, Clock, Loader2 } from "lucide-react";
 
 const ChatContainer = () => {
   const {
@@ -17,15 +19,33 @@ const ChatContainer = () => {
     unsubscribeFromMessages,
   } = useChatStore();
   const { authUser } = useAuthStore();
+  const { getRequestStatus, sendRequest, requestStatus } = useRequestStore();
   const messageEndRef = useRef(null);
+  const [currentRequest, setCurrentRequest] = useState(null);
+  const [isCheckingRequest, setIsCheckingRequest] = useState(true);
 
   useEffect(() => {
-    getMessages(selectedUser._id);
+    const checkRequest = async () => {
+      setIsCheckingRequest(true);
+      const request = await getRequestStatus(selectedUser._id);
+      setCurrentRequest(request);
+      setIsCheckingRequest(false);
+    };
 
+    checkRequest();
+    getMessages(selectedUser._id);
     subscribeToMessages();
 
     return () => unsubscribeFromMessages();
-  }, [selectedUser._id, getMessages, subscribeToMessages, unsubscribeFromMessages]);
+  }, [selectedUser._id, getMessages, subscribeToMessages, unsubscribeFromMessages, getRequestStatus]);
+
+  // Update current request from store cache
+  useEffect(() => {
+    const cachedRequest = requestStatus[selectedUser._id];
+    if (cachedRequest) {
+      setCurrentRequest(cachedRequest);
+    }
+  }, [requestStatus, selectedUser._id]);
 
   useEffect(() => {
     if (messageEndRef.current && messages) {
@@ -33,15 +53,28 @@ const ChatContainer = () => {
     }
   }, [messages]);
 
-  if (isMessagesLoading) {
+  const handleSendRequest = async () => {
+    try {
+      const request = await sendRequest(selectedUser._id);
+      setCurrentRequest(request);
+    } catch (error) {
+      console.error("Error sending request:", error);
+    }
+  };
+
+  if (isMessagesLoading || isCheckingRequest) {
     return (
       <div className="flex-1 flex flex-col overflow-auto">
         <ChatHeader />
         <MessageSkeleton />
-        <MessageInput />
       </div>
     );
   }
+
+  // Check if chat is allowed
+  const canChat = currentRequest?.status === "accepted" || messages.length > 0;
+  const isPending = currentRequest?.status === "pending";
+  const isRequester = currentRequest?.requester?._id === authUser._id;
 
   return (
     <div className="flex-1 flex flex-col overflow-auto">
@@ -92,7 +125,33 @@ const ChatContainer = () => {
         ))}
       </div>
 
-      <MessageInput />
+      {/* Conditional rendering based on request status */}
+      {canChat ? (
+        <MessageInput />
+      ) : isPending ? (
+        <div className="p-4 bg-base-200 border-t border-base-300">
+          <div className="flex items-center justify-center gap-2 text-base-content/60">
+            <Clock className="w-5 h-5" />
+            <p>
+              {isRequester
+                ? `Waiting for ${selectedUser.fullName} to accept your chat request`
+                : "You have a pending chat request from this user"}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="p-4 bg-base-200 border-t border-base-300">
+          <div className="flex flex-col items-center justify-center gap-3">
+            <p className="text-base-content/60">
+              Send a chat request to start messaging {selectedUser.fullName}
+            </p>
+            <button onClick={handleSendRequest} className="btn btn-primary gap-2">
+              <UserPlus className="w-5 h-5" />
+              Send Chat Request
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -8,6 +8,7 @@ import ProfilePage from "./pages/ProfilePage";
 
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/useAuthStore";
+import { useRequestStore } from "./store/useRequestStore";
 import { useThemeStore } from "./store/useThemeStore";
 import { useEffect } from "react";
 
@@ -17,12 +18,31 @@ import { Toaster } from "react-hot-toast";
 const App = () => {
   const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
   const { theme } = useThemeStore();
+  const {
+    subscribeToSocketEvents,
+    unsubscribeFromSocketEvents,
+    fetchIncomingRequests,
+    fetchOutgoingRequests
+  } = useRequestStore();
 
   console.log({ onlineUsers });
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Subscribe to request socket events when user is authenticated
+  useEffect(() => {
+    if (authUser) {
+      subscribeToSocketEvents();
+      fetchIncomingRequests();
+      fetchOutgoingRequests();
+
+      return () => {
+        unsubscribeFromSocketEvents();
+      };
+    }
+  }, [authUser, subscribeToSocketEvents, unsubscribeFromSocketEvents, fetchIncomingRequests, fetchOutgoingRequests]);
 
   console.log({ authUser });
 
